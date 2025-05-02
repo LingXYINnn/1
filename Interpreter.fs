@@ -380,17 +380,28 @@ let rec internal reduce (env: RuntimeEnv<'E,'T>)
         Some(env, {node with Expr = rewritten})
 //dowhile
     | DoWhile(body, cond) ->
-        /// Rewritten 'do-while' loop, transformed into a sequence of body 
-        /// followed by an 'if' on the condition.  If 'cond' is true, we 
-        /// continue with the whole 'body' of the loop, followed by the whole 
-        /// loop itself; otherwise, we return the last result of body.
-        let rewritten = Seq([
-            body; 
-            {body with Expr = If(cond,
-                                 {body with Expr = Seq([body; node])},
-                                 body)}
-        ])
-        Some(env, {node with Expr = rewritten})
+        match (reduce env body) with
+        | Some(env', body') ->
+            // Continue reducing the body first
+            Some(env', {node with Expr = DoWhile(body', cond)})
+        | None when (isValue body) ->
+            // Body is fully reduced, now check the condition
+            match (reduce env cond) with
+            | Some(env', cond') ->
+                // Continue reducing the condition
+                Some(env', {node with Expr = DoWhile(body, cond')})
+            | None when (isValue cond) ->
+                match cond.Expr with
+                | BoolVal(true) ->
+                    // Condition is true, run the loop again (execute the body then check the condition)
+                    Some(env, {node with Expr = Seq([body; node])})
+                | BoolVal(false) ->
+                    // Condition is false, we're done
+                    Some(env, {node with Expr = UnitVal})
+                | _ -> None
+            | None -> None
+        | None -> None
+    
 
     | Application(expr, args) ->
         match expr.Expr with
