@@ -385,12 +385,13 @@ let rec internal reduce (env: RuntimeEnv<'E,'T>)
         /// continue with the whole 'body' of the loop, followed by the whole 
         /// loop itself; otherwise, we return the last result of body.
         let rewritten = Seq([
-            body; 
-            {body with Expr = If(cond,
-                                 {body with Expr = Seq([body; node])},
-                                 body)}
+                            body; 
+                            {body with 
+                                Expr = If(cond,
+                                         {body with Expr = Seq([body; node])},
+                                          body)}
         ])
-        Some(env, {node with Expr = rewritten})
+        Some(env, {node with Expr = rewritten.Expr})
 
     | Application(expr, args) ->
         match expr.Expr with
