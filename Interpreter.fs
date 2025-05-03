@@ -381,27 +381,32 @@ let rec internal reduce (env: RuntimeEnv<'E,'T>)
 
 //dowhile
     | DoWhile(body, cond) ->
-  // 1. 先把 body 归约到值（并执行其中的副作用）
-      match reduce env body with
-      | Some(env', body') ->
-          Some(env', { node with Expr = DoWhile(body', cond) })
-  // 2. body 已经是值了，开始归约 cond
-      | None when isValue body ->
-       match reduce env cond with
-         | Some(env'', cond') ->
-            Some(env'', { node with Expr = DoWhile(body, cond') })
-         | None when isValue cond ->
-           match cond.Expr with
-           | BoolVal true  ->
-               let loop = Seq([body; node])
-               Some(env, { node with Expr = loop })
-           | BoolVal false ->
-          // 条件为假：整个表达式的结果就是 body 的值
-               Some(env, body)
-           | _ -> None
-         | None -> None
-      | None -> None
-
+    // If the body is not a value, reduce it first
+        if not (isValue body) then
+            match (reduce env body) with
+            | Some(env', body') ->
+                Some(env', {node with Expr = DoWhile(body', cond)})
+            | None -> None
+    // If body is a value but condition is not, reduce the condition
+        else if not (isValue cond) then
+            match (reduce env cond) with
+            | Some(env', cond') ->
+                Some(env', {node with Expr = DoWhile(body, cond')})
+            | None -> None
+    // If both body and condition are values, check condition value
+        else
+            match cond.Expr with
+            | BoolVal(true) ->
+            // If condition is true, execute body again followed by the entire loop
+            // Create a new DoWhile with the original body definition
+                match node.Expr with
+                | DoWhile(origBody, _) -> 
+                    Some(env, { node with Expr = DoWhile(origBody, cond) })
+                | _ -> failwith "Unexpected expression type"
+            | BoolVal(false) ->
+            // If condition is false, do-while is done, result is body's value
+                Some(env, body)
+            | _ -> None
 
     | Application(expr, args) ->
         match expr.Expr with
