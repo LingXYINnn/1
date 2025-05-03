@@ -381,27 +381,29 @@ let rec internal reduce (env: RuntimeEnv<'E,'T>)
 
 //dowhile
     | DoWhile(body, cond) ->
-    // 1. First, reduce the body (e₁)
         match (reduce env body) with
         | Some(env', body') ->
-        // Body is still reducing, continue with the reduced body
+        // 1. reduce e₁ into a value
             Some(env', {node with Expr = DoWhile(body', cond)})
         | None when (isValue body) ->
-        // 2. Body is a value, now reduce the condition (e₂)
+        // e₁ is now a value, proceed to step 2
             match (reduce env cond) with
             | Some(env', cond') ->
-            // Condition is still reducing, continue with the reduced condition
+            // 2. reduce the condition expression e₂ into a value
                 Some(env', {node with Expr = DoWhile(body, cond')})
             | None when (isValue cond) ->
                 match cond.Expr with
                 | BoolVal(true) ->
-                // If e₂ reduces to true, repeat from point 1
-                // Start a new iteration of the loop
+                // if e₂ reduces to true, repeat from point 1
+                // We need to setup another iteration using the same body
                     Some(env, {node with Expr = DoWhile(body, cond)})
                 | BoolVal(false) ->
-                // Otherwise, reduce the whole expression to the value of e₁
+                // otherwise, reduce to the value of last execution of e₁
                     Some(env, {node with Expr = body.Expr})
-                | _ -> None
+                | _ -> 
+                // For non-boolean conditions, use appropriate error handling
+                // If you have an error type, use it here
+                    None  // Or create appropriate error representation
             | None -> None
         | None -> None
     
