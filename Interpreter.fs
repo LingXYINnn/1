@@ -381,31 +381,30 @@ let rec internal reduce (env: RuntimeEnv<'E,'T>)
 
 //dowhile
     | DoWhile(body, cond) ->
-    // If the body is not a value, reduce it first
-        if not (isValue body) then
-            match (reduce env body) with
-            | Some(env', body') ->
-                Some(env', {node with Expr = DoWhile(body', cond)})
-            | None -> None
-    // If body is a value but condition is not, reduce the condition
-        else if not (isValue cond) then
+    // 1. First, reduce the body (e₁)
+        match (reduce env body) with
+        | Some(env', body') ->
+        // Body is still reducing, continue with the reduced body
+            Some(env', {node with Expr = DoWhile(body', cond)})
+        | None when (isValue body) ->
+        // 2. Body is a value, now reduce the condition (e₂)
             match (reduce env cond) with
             | Some(env', cond') ->
+            // Condition is still reducing, continue with the reduced condition
                 Some(env', {node with Expr = DoWhile(body, cond')})
+            | None when (isValue cond) ->
+                match cond.Expr with
+                | BoolVal(true) ->
+                // If e₂ reduces to true, repeat from point 1
+                // Start a new iteration of the loop
+                    Some(env, {node with Expr = DoWhile(body, cond)})
+                | BoolVal(false) ->
+                // Otherwise, reduce the whole expression to the value of e₁
+                    Some(env, {node with Expr = body.Expr})
+                | _ -> None
             | None -> None
-    // If both body and condition are values, check condition value
-        else
-            match cond.Expr with
-            | BoolVal(true) ->
-    // 条件为真时重新评估原始条件表达式，继续循环
-                match node.Expr with
-                | DoWhile(origBody, origCond) ->
-                    Some(env, { node with Expr = DoWhile(origBody, origCond) })
-                | _ -> failwith "Unexpected expression type"
-            | BoolVal(false) ->
-            // If condition is false, do-while is done, result is body's value
-                Some(env, body)
-            | _ -> None
+        | None -> None
+    
 
     | Application(expr, args) ->
         match expr.Expr with

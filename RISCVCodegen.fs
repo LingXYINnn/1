@@ -587,28 +587,24 @@ let rec internal doCodegen (env: CodegenEnv) (node: TypedAST): Asm =
 
 //dowhile
     | DoWhile(body, cond) ->
-        /// Label to mark the beginning of the 'do-while' loop
-        let doWhileBeginLabel = Util.genSymbol "do_while_loop_begin"
-        /// Label to mark the condition check of the 'do-while' loop
+    /// Label for the body of the do-while loop
+        let doWhileBodyLabel = Util.genSymbol "do_while_body"
+    /// Label for the condition check
         let doWhileCondLabel = Util.genSymbol "do_while_cond"
-        /// Label to mark the end of the 'do-while' loop
-        let doWhileEndLabel = Util.genSymbol "do_while_loop_end"
-        let condReg = env.Target + 1u          // 注意 1u 是 uint
-        let envCond = { env with Target = condReg }
+    /// Label for the end of the do-while loop
+        let doWhileEndLabel = Util.genSymbol "do_while_end"
     
-        // For do-while, we execute the body first before checking the condition
-        Asm(RV.LABEL(doWhileBeginLabel), "Beginning of the 'do-while' loop")
+    // First execute the body, without checking the condition
+        Asm(RV.LABEL(doWhileBodyLabel), "Body of the 'do-while' loop starts here")
             ++ (doCodegen env body)
-                .AddText([
-                    (RV.LABEL(doWhileCondLabel), 
-                     "Condition check for the 'do-while' loop")
-                ])
-            ++ (doCodegen envCond cond)
-               .AddText([
-                   (RV.BNEZ(Reg.r condReg, doWhileBeginLabel), 
-                    "Jump back to loop beginning if condition is true")
-                   (RV.LABEL doWhileEndLabel, "End of the 'do‑while' loop")
-               ])
+            .AddText(RV.LABEL(doWhileCondLabel), "Condition check for the 'do-while' loop")
+        // Then check the condition
+            ++ (doCodegen env cond)
+            .AddText([
+                (RV.BNEZ(Reg.r(env.Target), doWhileBodyLabel),
+                 "Jump back to loop body if condition is true")
+                (RV.LABEL(doWhileEndLabel), "End of the 'do-while' loop")
+            ])
 
     | Lambda(args, body) ->
         /// Label to mark the position of the lambda term body
