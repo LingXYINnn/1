@@ -397,11 +397,10 @@ let rec internal reduce (env: RuntimeEnv<'E,'T>)
         else
             match cond.Expr with
             | BoolVal(true) ->
-            // If condition is true, execute body again followed by the entire loop
-            // Create a new DoWhile with the original body definition
+    // 条件为真时重新评估原始条件表达式，继续循环
                 match node.Expr with
-                | DoWhile(origBody, _) -> 
-                    Some(env, { node with Expr = DoWhile(origBody, cond) })
+                | DoWhile(origBody, origCond) ->
+                    Some(env, { node with Expr = DoWhile(origBody, origCond) })
                 | _ -> failwith "Unexpected expression type"
             | BoolVal(false) ->
             // If condition is false, do-while is done, result is body's value

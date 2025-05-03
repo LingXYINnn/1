@@ -593,6 +593,8 @@ let rec internal doCodegen (env: CodegenEnv) (node: TypedAST): Asm =
         let doWhileCondLabel = Util.genSymbol "do_while_cond"
         /// Label to mark the end of the 'do-while' loop
         let doWhileEndLabel = Util.genSymbol "do_while_loop_end"
+        let condReg = env.Target + 1u          // 注意 1u 是 uint
+        let envCond = { env with Target = condReg }
     
         // For do-while, we execute the body first before checking the condition
         Asm(RV.LABEL(doWhileBeginLabel), "Beginning of the 'do-while' loop")
@@ -601,13 +603,12 @@ let rec internal doCodegen (env: CodegenEnv) (node: TypedAST): Asm =
                     (RV.LABEL(doWhileCondLabel), 
                      "Condition check for the 'do-while' loop")
                 ])
-            ++ (doCodegen env cond)
-                .AddText([
-                    (RV.BNEZ(Reg.r(env.Target), doWhileBeginLabel),
-                     "Jump back to loop beginning if condition is true")
-                    (RV.LABEL(doWhileEndLabel),
-                     "End of the 'do-while' loop")
-                ])
+            ++ (doCodegen envCond cond)
+               .AddText([
+                   (RV.BNEZ(Reg.r condReg, doWhileBeginLabel), 
+                    "Jump back to loop beginning if condition is true")
+                   (RV.LABEL doWhileEndLabel, "End of the 'do‑while' loop")
+               ])
 
     | Lambda(args, body) ->
         /// Label to mark the position of the lambda term body
