@@ -378,20 +378,30 @@ let rec internal reduce (env: RuntimeEnv<'E,'T>)
                            {body with Expr = Seq([body; node])},
                            {body with Expr = UnitVal})
         Some(env, {node with Expr = rewritten})
+
 //dowhile
     | DoWhile(body, cond) ->
-        let tempVar = Util.genSymbol "dowhile_result"
-    // Create a proper sequence that:
-    // 1. Executes the body and stores result in tempVar
-    // 2. Checks condition - if true, loops again with original body, if false returns stored result
-        let rewritten = Seq([
-            {node with Expr = Let(tempVar, body,
-                                  {node with Expr = If(cond,
-                                                     {node with Expr = DoWhile(body, cond)},
-                                                     {node with Expr = Var(tempVar)})})}
-        ])
-        Some(env, {node with Expr = rewritten})
-    
+  // 1. 先把 body 归约到值（并执行其中的副作用）
+      match reduce env body with
+      | Some(env', body') ->
+          Some(env', { node with Expr = DoWhile(body', cond) })
+  // 2. body 已经是值了，开始归约 cond
+      | None when isValue body ->
+       match reduce env cond with
+         | Some(env'', cond') ->
+            Some(env'', { node with Expr = DoWhile(body, cond') })
+         | None when isValue cond ->
+           match cond.Expr with
+           | BoolVal true  ->
+               let loop = Seq([body; node])
+               Some(env, { node with Expr = loop })
+           | BoolVal false ->
+          // 条件为假：整个表达式的结果就是 body 的值
+               Some(env, body)
+           | _ -> None
+         | None -> None
+      | None -> None
+
 
     | Application(expr, args) ->
         match expr.Expr with
