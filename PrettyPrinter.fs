@@ -118,6 +118,9 @@ let rec internal formatASTRec (node: AST.Node<'E,'T>): Tree =
                           ("rhs", formatASTRec rhs)]
     | Not(arg) ->
         mkTree "Not" node [("arg", formatASTRec arg)]
+//copy
+    | Copy(arg) ->
+        mkTree "Copy" node [("arg", formatASTRec arg)]
     | Eq(lhs, rhs) ->
         mkTree "Eq" node [("lhs", formatASTRec lhs)
                           ("rhs", formatASTRec rhs)]
