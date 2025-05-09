@@ -150,6 +150,28 @@ let rec internal reduce (env: RuntimeEnv<'E,'T>)
                 Some(env', {node with Expr = Not(arg2)})
             | None -> None
 
+    | Copy(arg) ->
+        match (reduce env arg) with
+        | Some(env', arg') ->
+            Some(env', {node with Expr = Copy(arg')})
+        | None when isValue arg ->
+            match arg.Expr with
+            | Pointer(addr) ->
+                match (env.PtrInfo.TryFind addr) with
+                | Some(fields) ->
+                // 获取源结构的字段值
+                    let fieldValues = 
+                        List.mapi (fun i _ -> env.Heap[addr + (uint i)]) fields
+                // 为新结构分配内存
+                    let (heap', baseAddr) = heapAlloc env.Heap fieldValues
+                // 更新新结构的指针信息
+                    let ptrInfo' = env.PtrInfo.Add(baseAddr, fields)
+                    Some({env with Heap = heap'; PtrInfo = ptrInfo'}, 
+                         {node with Expr = Pointer(baseAddr)})
+                | None -> None
+            | _ -> None
+        | None -> None
+
     | Eq(lhs, rhs) ->
         match (lhs.Expr, rhs.Expr) with
         | (IntVal(v1), IntVal(v2)) ->
@@ -381,32 +403,31 @@ let rec internal reduce (env: RuntimeEnv<'E,'T>)
 
 //dowhile
     | DoWhile(body, cond) ->
+        let origBody = body
+        let origCond = cond
         match (reduce env body) with
-        | Some(env', body') ->
+        | Some(env1, body') ->
         // 1. reduce e₁ into a value
-            Some(env', {node with Expr = DoWhile(body', cond)})
+            Some(env1, {node with Expr = DoWhile(body', cond)})
         | None when (isValue body) ->
         // e₁ is now a value, proceed to step 2
             match (reduce env cond) with
-            | Some(env', cond') ->
+            | Some(env2, cond') ->
             // 2. reduce the condition expression e₂ into a value
-                Some(env', {node with Expr = DoWhile(body, cond')})
+                Some(env2, {node with Expr = DoWhile(body, cond')})
             | None when (isValue cond) ->
+            // 由于F#的作用域规则，这里访问不到env2，必须使用env
                 match cond.Expr with
                 | BoolVal(true) ->
                 // if e₂ reduces to true, repeat from point 1
-                // We need to setup another iteration using the same body
-                    Some(env, {node with Expr = DoWhile(body, cond)})
+                    Some(env, {node with Expr = DoWhile(origBody, origCond)})
                 | BoolVal(false) ->
                 // otherwise, reduce to the value of last execution of e₁
                     Some(env, {node with Expr = body.Expr})
                 | _ -> 
-                // For non-boolean conditions, use appropriate error handling
-                // If you have an error type, use it here
-                    None  // Or create appropriate error representation
+                    None
             | None -> None
         | None -> None
-    
 
     | Application(expr, args) ->
         match expr.Expr with
