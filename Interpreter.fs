@@ -162,10 +162,13 @@ let rec internal reduce (env: RuntimeEnv<'E,'T>)
                 // 获取源结构的字段值
                     let fieldValues = 
                         List.mapi (fun i _ -> env.Heap[addr + (uint i)]) fields
+                
                 // 为新结构分配内存
                     let (heap', baseAddr) = heapAlloc env.Heap fieldValues
+                
                 // 更新新结构的指针信息
                     let ptrInfo' = env.PtrInfo.Add(baseAddr, fields)
+                
                     Some({env with Heap = heap'; PtrInfo = ptrInfo'}, 
                          {node with Expr = Pointer(baseAddr)})
                 | None -> None
@@ -405,6 +408,7 @@ let rec internal reduce (env: RuntimeEnv<'E,'T>)
     | DoWhile(body, cond) ->
         let origBody = body
         let origCond = cond
+    
         match (reduce env body) with
         | Some(env1, body') ->
         // 1. reduce e₁ into a value
